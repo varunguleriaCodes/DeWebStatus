@@ -1,0 +1,18 @@
+# Ignore build artifacts
+/target/
+
+# Ignore IDE/editor configs
+**/*.rs.bk
+.idea/
+.vscode/
+
+# Ignore environment variables or secrets
+.env
+.env.*
+
+# Ignore by Cargo
+Cargo.lock   # If it's a library crate, not a binary crate
+
+# OS-specific
+.DS_Store
+Thumbs.db

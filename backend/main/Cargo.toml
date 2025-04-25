@@ -1,0 +1,9 @@
+[package]
+name = "main"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+api = { path = "../crates/api" }
+config = { path = "../crates/config" }
+actix-web = "4"
