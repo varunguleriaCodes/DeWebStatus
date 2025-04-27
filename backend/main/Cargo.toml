@@ -6,4 +6,7 @@ edition = "2024"
 [dependencies]
 api = { path = "../crates/api" }
 config = { path = "../crates/config" }
-actix-web = "4"
+db = {path = "../crates/db"}
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio", "macros"] }
+axum = "0.7.4" 
+tokio = { version = "1.44.2", features = ["full"] }

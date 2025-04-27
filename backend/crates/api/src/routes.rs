@@ -1,10 +1,30 @@
-use actix_web::{get, web, HttpResponse, Scope};
+use axum::{Router, routing::get, response::IntoResponse};
 
-#[get("/hello")]
-async fn hello() -> HttpResponse {
-    HttpResponse::Ok().body("Hello from Rust backend!")
+async fn hello() -> impl IntoResponse {
+    "Hello from Rust backend!"
 }
 
-pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/api").service(hello));
+async fn createWebsite() -> impl IntoResponse{
+
+}
+
+async fn getWebsiteStatus() -> impl IntoResponse{
+
+}
+
+async fn getWebsites() -> impl IntoResponse{
+
+}
+
+async fn deleteWebsite() -> impl IntoResponse{
+
+}
+
+pub fn routes() -> Router {
+    Router::new()
+        .nest(
+            "/api",
+            Router::new()
+                .route("/hello", get(hello))
+        )
 }
