@@ -1,8 +1,12 @@
-use axum::{Router, routing::get_service, Extension};
+use axum::{http, routing::get_service, Extension, Router};
 use api::routes::routes;
 use config::get_config;
 use db::connection::postgresDb;
 use sqlx::PgPool;
+use tower_http::cors::{CorsLayer, Any};
+use tower::ServiceBuilder;
+use std::net::SocketAddr;
+use http::{Method, HeaderValue};
 
 #[tokio::main]
 async fn main() {
@@ -18,16 +22,26 @@ async fn main() {
     .fetch_all(&pool)
     .await
     .expect("failed to fetch tables");
-    
+
     println!("Tables in DB:");
     for (table_name,) in rows {
         println!("{}", table_name);
     }
 
+    // CORS Layer
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap()) // Change this as needed
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION]);
+
     // Build Axum app
     let app = Router::new()
         .nest("/", routes())
-        .layer(Extension(pool));
+        .layer(
+            ServiceBuilder::new()
+                .layer(cors)
+                .layer(Extension(pool))
+        );
 
     let listener = tokio::net::TcpListener::bind(&config.host_port)
         .await

@@ -33,13 +33,17 @@ where
     let s: String = Deserialize::deserialize(deserializer)?;
     Uuid::parse_str(&s).map_err(serde::de::Error::custom)
 }
-
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WebsiteQuery{
     pub id: Uuid,
     pub user_id: Uuid
 }
-
+#[derive(Debug, Serialize, Deserialize)]
 pub struct User{
     pub id: Uuid,
     pub email:String
+}
+#[derive(Deserialize)]
+pub struct UserIdQuery {
+    pub user_id: Uuid,
 }
