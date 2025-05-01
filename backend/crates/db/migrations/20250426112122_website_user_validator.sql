@@ -5,6 +5,8 @@ CREATE TYPE "WebsiteStatus" AS ENUM ('Good', 'Bad');
 CREATE TABLE users (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "username" Text,
     CONSTRAINT "users_email_unique" UNIQUE ("email")
 );
 

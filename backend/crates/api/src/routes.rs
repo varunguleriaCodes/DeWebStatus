@@ -5,15 +5,19 @@ use axum::{
     routing::{delete, get, post},
     Extension, Router,
 };
+use chrono::Utc;
+use jsonwebtoken::{EncodingKey, Header,encode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{postgres::PgRow, PgPool, Row};
 use uuid::Uuid;
-
 use crate::{
     auth::auth_middleware,
-    models::{User, UserIdQuery, Website, WebsiteQuery},
+    models::{Claims, User, UserIdQuery, UserRegister, Website, WebsiteQuery},
 };
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::password_hash::{SaltString, rand_core::OsRng};
+use argon2::password_hash::Error;
 
 #[derive(Serialize)]
 struct ApiResponse<T> {
@@ -287,6 +291,157 @@ async fn deleteWebsite(
     }
 }
 
+pub async fn signup_handler(
+    Extension(pool): Extension<PgPool>,
+    Json(payload): Json<UserRegister>,
+) -> ApiJsonResponse {
+    let UserRegister {
+        username,
+        password,
+        email,
+        id,
+    } = payload;
+
+    // Hash the password
+    let hashed_password = match hash_password(&password).await {
+        Ok(hash) => hash,
+        Err(e) => {
+            println!("Password hashing failed: {:?}", e);
+            return ApiJsonResponse(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json_error("Internal error during password processing"),
+            );
+        }
+    };
+
+    let user_id = id.unwrap_or_else(Uuid::new_v4);
+
+    let result = sqlx::query(
+        "INSERT INTO users (id, username, email, password)
+         VALUES ($1, $2, $3, $4)"
+    )
+    .bind(user_id)
+    .bind(&username)
+    .bind(&email)
+    .bind(&hashed_password)
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => ApiJsonResponse(
+            StatusCode::CREATED,
+            json_success(
+                json!({
+                    "id": user_id,
+                    "username": username,
+                    "email": email
+                }),
+                Some("User created successfully".to_string()),
+            ),
+        ),
+        Err(e) => {
+            println!("Error creating user: {:?}", e);
+            ApiJsonResponse(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json_error("Failed to create user"),
+            )
+        }
+    }
+}
+
+async fn hash_password(password: &str) -> Result<String, Error> {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)?
+        .to_string();
+
+    Ok(password_hash)  
+}
+
+#[derive(Deserialize)]
+pub struct LoginInfo {
+    pub email: String,
+    pub password: String,
+}
+
+pub async fn login_handler(
+    Extension(pool): Extension<PgPool>,
+    Json(login_info): Json<LoginInfo>,
+) -> ApiJsonResponse {
+    let LoginInfo { email, password } = login_info;
+
+    match is_valid_user(&email, &password, &pool).await {
+        Ok(Some(user_id)) => {
+            let claims = Claims {
+                sub: email.clone(),
+                exp: (Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
+            };
+
+            match encode(&Header::default(), &claims, &EncodingKey::from_secret("secret".as_ref())) {
+                Ok(token) => ApiJsonResponse(
+                    StatusCode::OK,
+                    json_success(
+                        json!({
+                            "token": token,
+                            "user_id": user_id
+                        }),
+                        Some("Login successful".into()),
+                    ),
+                ),
+                Err(e) => {
+                    println!("JWT creation failed: {:?}", e);
+                    ApiJsonResponse(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        json_error("Failed to generate authentication token"),
+                    )
+                }
+            }
+        }
+        Ok(None) => ApiJsonResponse(
+            StatusCode::UNAUTHORIZED,
+            json_error("Invalid email or password"),
+        ),
+        Err(e) => {
+            println!("Login DB error: {:?}", e);
+            ApiJsonResponse(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json_error("Login failed due to internal error"),
+            )
+        }
+    }
+}
+pub async fn is_valid_user(email: &str, password: &str, pool: &PgPool) -> Result<Option<Uuid>, sqlx::Error> {
+    let row = sqlx::query("SELECT id, password FROM users WHERE email = $1")
+        .bind(email)
+        .fetch_optional(pool)
+        .await?;
+
+    if let Some(row) = row {
+        let stored_hash: String = row.get("password");
+        let user_id: Uuid = row.get("id");
+
+        match PasswordHash::new(&stored_hash) {
+            Ok(parsed_hash) => {
+                let argon2 = Argon2::default();
+                if argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok() {
+                    return Ok(Some(user_id));
+                }
+            }
+            Err(e) => {
+                println!("Password hash parse error: {:?}", e);
+            }
+        }
+    }
+
+    Ok(None) // Either user not found or password mismatch
+}
+#[derive(Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+    pub user_id: Uuid,
+}
 pub fn routes() -> Router {
     Router::new()
         .nest(
@@ -297,6 +452,8 @@ pub fn routes() -> Router {
                 .route("/get-website-status", get(getWebsiteStatus))
                 .route("/websites", get(getWebsites))
                 .route("/delete-website", delete(deleteWebsite))
+                .route("/sign-up", post(signup_handler))
+                .route("/login", post(login_handler))
                 // .layer(middleware::from_fn(auth_middleware))
         )
 }

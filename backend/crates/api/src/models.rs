@@ -47,3 +47,12 @@ pub struct User{
 pub struct UserIdQuery {
     pub user_id: Uuid,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+
+pub struct UserRegister{
+    pub username: String,
+    pub password: String,
+    pub email: String,
+    pub id: Option<Uuid>
+}
