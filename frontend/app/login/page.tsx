@@ -9,7 +9,7 @@ import * as z from "zod";
 import { Eye, EyeOff, LucideArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import {
   Form,
   FormControl,
