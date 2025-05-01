@@ -24,6 +24,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { API_BACKEND_URL } from "@/config";
 import axios from "axios";
 import { toast } from "sonner";
+import { useAuthStore } from "@/lib/auth";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -57,18 +58,20 @@ export default function LoginPage() {
     })
     .then((response) => {
         if (response.data?.success) {
-            router.push('/login');
-            toast("User Created Successfully! Please Login");
+            // Store token and user ID
+            useAuthStore.getState().setAuth(response.data.token, response.data.userId);
+            router.push('/dashboard');
+            toast.success("Login successful!");
         } else {
-            toast("User Signup Failed! Please Try Again");
-            console.error("Signup failed:", response.data.message);
+            toast.error("Login failed: " + (response.data.message || "Please try again"));
+            console.error("Login failed:", response.data.message);
         }
         setIsLoading(false);
     })
     .catch((error) => {
-        toast("User Signup Failed! Please Try Again");
+        toast.error("Login failed: " + (error.response?.data?.message || "Please try again"));
         setIsLoading(false);
-        console.error("Error during signup:", error);
+        console.error("Error during login:", error);
     });
   }
 

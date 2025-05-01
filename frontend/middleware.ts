@@ -1,6 +1,28 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { isTokenExpired } from './lib/auth';
 
-export default clerkMiddleware();
+export function middleware(request: NextRequest) {
+  const token = request.cookies.get('token')?.value;
+  const { pathname } = request.nextUrl;
+
+  // Public paths that don't require authentication
+  const publicPaths = ['/login', '/register', '/'];
+  
+  // Check if the current path is public
+  if (publicPaths.includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  // If no token or token is expired, redirect to login
+  if (!token || isTokenExpired(token)) {
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.cookies.delete('token');
+    return response;
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
