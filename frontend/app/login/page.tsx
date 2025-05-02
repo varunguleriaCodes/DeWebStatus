@@ -58,8 +58,7 @@ export default function LoginPage() {
     })
     .then((response) => {
         if (response.data?.success) {
-            // Store token and user ID
-            useAuthStore.getState().setAuth(response.data.token, response.data.userId);
+            useAuthStore.getState().setAuth(response.data.data.token, response.data.data.user_id);
             router.push('/dashboard');
             toast.success("Login successful!");
         } else {

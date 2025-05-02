@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import Cookies from 'js-cookie';
 
 interface AuthState {
   token: string | null;
@@ -7,20 +8,31 @@ interface AuthState {
   clearAuth: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
-  userId: typeof window !== 'undefined' ? localStorage.getItem('userId') : null,
-  setAuth: (token: string, userId: string) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('userId', userId);
-    set({ token, userId });
-  },
-  clearAuth: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    set({ token: null, userId: null });
-  },
-}));
+export const useAuthStore = create<AuthState>((set) => {
+  let token: string | null = null;
+  let userId: string | null = null;
+
+  if (typeof window !== 'undefined') {
+    token = Cookies.get('token') || null;
+    userId = Cookies.get('userId') || null;
+  }
+
+  return {
+    token,
+    userId,
+    setAuth: (token: string, userId: string) => {
+      const expires = 1 / 3;
+      Cookies.set('token', token, { expires });
+      Cookies.set('userId', userId, { expires });
+      set({ token, userId });
+    },
+    clearAuth: () => {
+      Cookies.remove('token');
+      Cookies.remove('userId');
+      set({ token: null, userId: null });
+    },
+  };
+});
 
 export const isTokenExpired = (token: string): boolean => {
   try {

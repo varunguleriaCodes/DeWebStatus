@@ -126,10 +126,10 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const {websites, refreshWebsites} = useWebsites();
-  const { token } = useAuthStore();
+  const { token,userId } = useAuthStore();
 
   const processedWebsites = useMemo(() => {
-    return websites.map(website => {
+    return websites?.map(website => {
       // Sort ticks by creation time
       const sortedTicks = [...website.ticks].sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -222,7 +222,7 @@ function App() {
           </div>
           
           <div className="space-y-4">
-            {processedWebsites.map((website) => (
+            {processedWebsites?.map((website) => (
               <WebsiteCard key={website.id} website={website} />
             ))}
           </div>
@@ -239,14 +239,16 @@ function App() {
             setIsModalOpen(false);
             try {
               await axios.post(`${API_BACKEND_URL}/api/create-website`, {
-                url,
+                "url":url,
+                "user_id":userId,
+                "disabled":false
               }, {
                 headers: {
-                  Authorization: `Bearer ${token}`,
+                  Authorization: `${token}`,
                 },
               });
               refreshWebsites();
-            } catch (error: any) {
+            } catch (error) {
               if (error.response?.status === 401) {
                 // Token expired or invalid
                 useAuthStore.getState().clearAuth();

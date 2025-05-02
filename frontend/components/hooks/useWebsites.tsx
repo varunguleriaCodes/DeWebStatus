@@ -1,9 +1,8 @@
 "use client";
 import { API_BACKEND_URL } from "../../config";
-import { useAuth } from "@clerk/nextjs";
 import axios from "axios";
 import { useEffect, useState } from "react";
-
+import { useAuthStore } from '@/lib/auth';
 interface Website {
     id: string;
     url: string;
@@ -16,18 +15,17 @@ interface Website {
 }
 
 export function useWebsites() {
-    const { getToken } = useAuth();
+    const { token,userId } = useAuthStore();
     const [websites, setWebsites] = useState<Website[]>([]);
 
     async function refreshWebsites() {    
-        const token = await getToken();
-        const response = await axios.get(`${API_BACKEND_URL}/api/websites`, {
+        const response = await axios.get(`${API_BACKEND_URL}/api/websites?user_id=`+userId, {
             headers: {
                 Authorization: token,
             },
         });
 
-        setWebsites(response.data.websites);
+        setWebsites(response.data.data.websites);
     }
 
     useEffect(() => {
