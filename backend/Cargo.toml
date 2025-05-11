@@ -4,5 +4,7 @@ members = [
   "crates/api",
   "crates/core",
   "crates/db",
-  "crates/config"
-, "crates/validators", "crates/hubs"]
+  "crates/config",
+  "crates/validators", 
+  "crates/hubs"
+]
