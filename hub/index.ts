@@ -26,6 +26,7 @@ Bun.serve({
             const data: IncomingMessage = JSON.parse(message);
 
             if (data.type === 'signup') {
+                console.log(data.data)
                 const verified = await verifyMessage(
                     `Signed message for ${data.data.callbackId}, ${data.data.publicKey}`,
                     data.data.publicKey,
@@ -46,8 +47,9 @@ Bun.serve({
 });
 
 async function signupHandler(ws: ServerWebSocket<unknown>, { ip, publicKey, signedMessage, callbackId }: SignupIncomingMessage) {
+    console.log("signuphandler")
     const { rows: validatorRows } = await db.query(
-        'SELECT * FROM validator WHERE publicKey = $1 LIMIT 1',
+        'SELECT * FROM validators WHERE publicKey = $1 LIMIT 1',
         [publicKey]
     );
 
@@ -57,7 +59,7 @@ async function signupHandler(ws: ServerWebSocket<unknown>, { ip, publicKey, sign
         validatorId = validator.id;
     } else {
         const result = await db.query(
-            'INSERT INTO validator (ip, publicKey, location) VALUES ($1, $2, $3) RETURNING *',
+            'INSERT INTO validators (ip, publicKey, location) VALUES ($1, $2, $3) RETURNING *',
             [ip, publicKey, 'unknown']
         );
         validatorId = result.rows[0].id;
@@ -89,8 +91,9 @@ async function verifyMessage(message: string, publicKey: string, signature: stri
 }
 
 setInterval(async () => {
-    const { rows: websitesToMonitor } = await db.query('SELECT * FROM website WHERE disabled = false');
-
+    console.log("runnung",availableValidators);
+    const { rows: websitesToMonitor } = await db.query('SELECT * FROM websites WHERE disabled = false');
+    
     for (const website of websitesToMonitor) {
         availableValidators.forEach(validator => {
             const callbackId = randomUUIDv7();
@@ -122,7 +125,7 @@ setInterval(async () => {
                         `, [website.id, validatorId, status, latency, new Date()]);
 
                         await db.query(`
-                            UPDATE validator SET pendingPayouts = pendingPayouts + $1 WHERE id = $2
+                            UPDATE validators SET pendingPayouts = pendingPayouts + $1 WHERE id = $2
                         `, [COST_PER_VALIDATION, validatorId]);
 
                         await db.query('COMMIT');

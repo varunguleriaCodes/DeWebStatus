@@ -3,14 +3,16 @@ import type { OutgoingMessage, SignupOutgoingMessage, ValidateOutgoingMessage } 
 import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
+import bs58 from 'bs58';
 
 const CALLBACKS: {[callbackId: string]: (data: SignupOutgoingMessage) => void} = {}
 
 let validatorId: string | null = null;
 
 async function main() {
+    const secretKey64 = bs58.decode(process.env.PRIVATE_KEY!);
     const keypair = Keypair.fromSecretKey(
-        Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!))
+        Uint8Array.from(secretKey64)
     );
     const ws = new WebSocket("ws://localhost:8081");
 
