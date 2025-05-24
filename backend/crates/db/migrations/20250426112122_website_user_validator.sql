@@ -1,6 +1,3 @@
--- Create WebsiteStatus enum
-CREATE TYPE "WebsiteStatus" AS ENUM ('Good', 'Bad');
-
 -- Create Users table
 CREATE TABLE users (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -35,7 +32,7 @@ CREATE TABLE website_ticks (
     "website_id" UUID NOT NULL,
     "validator_id" UUID NOT NULL,
     "created_at" TIMESTAMP NOT NULL,
-    "status" "WebsiteStatus" NOT NULL,
+    "status" TEXT NOT NULL,
     "latency" FLOAT NOT NULL,
     CONSTRAINT "fk_website_ticks_website_id" FOREIGN KEY ("website_id") REFERENCES "websites"("id") ON DELETE CASCADE,
     CONSTRAINT "fk_website_ticks_validator_id" FOREIGN KEY ("validator_id") REFERENCES "validators"("id") ON DELETE CASCADE

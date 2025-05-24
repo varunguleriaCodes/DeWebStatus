@@ -49,7 +49,7 @@ Bun.serve({
 async function signupHandler(ws: ServerWebSocket<unknown>, { ip, publicKey, signedMessage, callbackId }: SignupIncomingMessage) {
     console.log("signuphandler")
     const { rows: validatorRows } = await db.query(
-        'SELECT * FROM validators WHERE publicKey = $1 LIMIT 1',
+        'SELECT * FROM validators WHERE public_key = $1 LIMIT 1',
         [publicKey]
     );
 
@@ -59,7 +59,7 @@ async function signupHandler(ws: ServerWebSocket<unknown>, { ip, publicKey, sign
         validatorId = validator.id;
     } else {
         const result = await db.query(
-            'INSERT INTO validators (ip, publicKey, location) VALUES ($1, $2, $3) RETURNING *',
+            'INSERT INTO validators (ip, public_key, location) VALUES ($1, $2, $3) RETURNING *',
             [ip, publicKey, 'unknown']
         );
         validatorId = result.rows[0].id;
@@ -120,12 +120,12 @@ setInterval(async () => {
                     const tx = await db.query('BEGIN');
                     try {
                         await db.query(`
-                            INSERT INTO websiteTick (websiteId, validatorId, status, latency, createdAt)
-                            VALUES ($1, $2, $3, $4, $5)
+                           INSERT INTO website_ticks (website_id, validator_id, status, latency, created_at)
+                           VALUES ($1, $2, $3, $4, $5)
                         `, [website.id, validatorId, status, latency, new Date()]);
 
                         await db.query(`
-                            UPDATE validators SET pendingPayouts = pendingPayouts + $1 WHERE id = $2
+                            UPDATE validators SET pending_payouts = pending_payouts + $1 WHERE id = $2
                         `, [COST_PER_VALIDATION, validatorId]);
 
                         await db.query('COMMIT');

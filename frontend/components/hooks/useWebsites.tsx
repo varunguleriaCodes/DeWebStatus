@@ -8,7 +8,7 @@ interface Website {
     url: string;
     ticks: {
         id: string;
-        createdAt: string;
+        created_at: string;
         status: string;
         latency: number;
     }[];

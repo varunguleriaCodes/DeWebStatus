@@ -129,18 +129,17 @@ function App() {
   const { token,userId } = useAuthStore();
 
   const processedWebsites = useMemo(() => {
+    // console.log("132 running", websites)
     return websites?.map(website => {
       // Sort ticks by creation time
       const sortedTicks = [...website.ticks].sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      // Get the most recent 30 minutes of ticks
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const recentTicks = sortedTicks.filter(tick => 
-        new Date(tick.createdAt) > thirtyMinutesAgo
+      const recentTicks = sortedTicks.filter(tick =>
+        new Date(tick.created_at) > thirtyMinutesAgo
       );
-
       // Aggregate ticks into 3-minute windows (10 windows total)
       const windows: UptimeStatus[] = [];
 
@@ -149,7 +148,7 @@ function App() {
         const windowEnd = new Date(Date.now() - i * 3 * 60 * 1000);
         
         const windowTicks = recentTicks.filter(tick => {
-          const tickTime = new Date(tick.createdAt);
+          const tickTime = new Date(tick.created_at);
           return tickTime >= windowStart && tickTime < windowEnd;
         });
 
@@ -168,7 +167,7 @@ function App() {
 
       // Format the last checked time
       const lastChecked = sortedTicks[0]
-        ? new Date(sortedTicks[0].createdAt).toLocaleTimeString()
+        ? new Date(sortedTicks[0].created_at).toLocaleTimeString()
         : 'Never';
 
       return {

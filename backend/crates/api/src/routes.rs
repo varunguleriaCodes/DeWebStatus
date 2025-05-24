@@ -9,7 +9,7 @@ use chrono::Utc;
 use jsonwebtoken::{EncodingKey, Header,encode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{postgres::PgRow, PgPool, Row};
+use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 use crate::{
     auth::auth_middleware,
@@ -442,6 +442,71 @@ pub struct LoginResponse {
     pub token: String,
     pub user_id: Uuid,
 }
+
+#[derive(Deserialize)]
+pub struct ValidatorPayout {
+    validator_id: Uuid,
+}
+
+pub async fn validator_payout_handler(
+    Extension(pool): Extension<PgPool>,
+    Json(payload): Json<ValidatorPayout>,
+) -> Result<Json<String>, (axum::http::StatusCode, String)> {
+    let mut tx: Transaction<'_, Postgres> = pool.begin().await.map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to start transaction: {}", e),
+        )
+    })?;
+
+    // Lock the row to avoid race conditions (FOR UPDATE)
+    let validator = sqlx::query!(
+        r#"
+        SELECT * FROM validators WHERE id = $1 FOR UPDATE
+        "#,
+        payload.validator_id
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| (axum::http::StatusCode::NOT_FOUND, "Validator not found".to_string()))?;
+
+    if validator.pending_payouts == 0 {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "No pending payouts".to_string(),
+        ));
+    }
+
+    // Create Solana TX
+    let solana_signature = send_solana_payout(&validator.public_key, validator.pending_payouts)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    // Reset the counter
+    sqlx::query!(
+        r#"
+        UPDATE validators SET pending_payouts = 0 WHERE id = $1
+        "#,
+        validator.id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DB Error: {}", e)))?;
+
+    tx.commit().await.unwrap();
+
+    Ok(Json(solana_signature))
+}
+
+async fn send_solana_payout(pubkey: &str, lamports: i32) -> Result<String, String> {
+    // Simulated logic. Replace with real Solana transfer using solana_sdk::system_instruction etc.
+    println!("Sending payout to {} of amount {}", pubkey, lamports);
+
+    // You'd normally use solana-client and system_transaction here
+    Ok("fake_signature_123".to_string())
+}
+
+
 pub fn routes() -> Router {
     Router::new()
         .nest(
@@ -454,6 +519,7 @@ pub fn routes() -> Router {
                 .route("/delete-website", delete(deleteWebsite))
                 .route("/sign-up", post(signup_handler))
                 .route("/login", post(login_handler))
+                .route("/validator_payout", post(validator_payout_handler))
                 // .layer(middleware::from_fn(auth_middleware))
         )
 }
