@@ -1,3 +1,5 @@
+use std::{env, str::FromStr};
+
 use axum::{
     extract::Query,
     http::StatusCode,
@@ -18,6 +20,14 @@ use crate::{
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::password_hash::Error;
+use bs58;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::{Keypair, Signer, read_keypair_file},
+    system_instruction,
+    transaction::Transaction as SolanaTransaction
+};
 
 #[derive(Serialize)]
 struct ApiResponse<T> {
@@ -478,7 +488,7 @@ pub async fn validator_payout_handler(
     }
 
     // Create Solana TX
-    let solana_signature = send_solana_payout(&validator.public_key, validator.pending_payouts)
+    let solana_signature =  send_solana_payout(&validator.public_key, validator.pending_payouts)
         .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
@@ -495,17 +505,83 @@ pub async fn validator_payout_handler(
 
     tx.commit().await.unwrap();
 
-    Ok(Json(solana_signature))
+    Ok(Json({solana_signature}))
 }
 
 async fn send_solana_payout(pubkey: &str, lamports: i32) -> Result<String, String> {
-    // Simulated logic. Replace with real Solana transfer using solana_sdk::system_instruction etc.
-    println!("Sending payout to {} of amount {}", pubkey, lamports);
-
-    // You'd normally use solana-client and system_transaction here
-    Ok("fake_signature_123".to_string())
+    if lamports <= 0 {
+        return Err("Amount must be positive".to_string());
+    }
+    
+    let lamports = lamports as u64; 
+    
+    // Get environment variables
+    let rpc_url = env::var("SOLANA_RPC_URL")
+        .map_err(|_| "SOLANA_RPC_URL not set".to_string())?;
+    let private_key = env::var("PRIVATE_KEY")
+        .map_err(|_| "PRIVATE_KEY not set".to_string())?;
+    
+    // Initialize RPC client
+    let client = RpcClient::new(rpc_url);
+    
+    // Parse private key
+    let private_key_bytes = bs58::decode(private_key)
+        .into_vec()
+        .map_err(|e| format!("Failed to decode base58 private key: {}", e))?;
+    
+    let keypair = Keypair::from_bytes(&private_key_bytes)
+        .map_err(|e| format!("Invalid private key bytes: {}", e))?;
+    
+    // Parse destination pubkey
+    let destination_pubkey = Pubkey::from_str(pubkey)
+        .map_err(|e| format!("Invalid destination pubkey: {}", e))?;
+    
+    // Check balance
+    let balance = client
+        .get_balance(&keypair.pubkey())
+        .map_err(|e| format!("Failed to fetch balance: {}", e))?;
+    
+    if balance < lamports {
+        let sol_needed = lamports as f64 / 1_000_000_000.0;
+        let sol_available = balance as f64 / 1_000_000_000.0;
+        let msg = format!(
+            "Insufficient balance. Needed: {:.9} SOL, Available: {:.9} SOL",
+            sol_needed, sol_available
+        );
+        return Err(msg);
+    }
+    
+    // Create transfer instruction
+    let instruction = system_instruction::transfer(
+        &keypair.pubkey(),
+        &destination_pubkey,
+        lamports, // Use original lamports amount, not converted SOL
+    );
+    
+    // Get recent blockhash
+    let recent_blockhash = client
+        .get_latest_blockhash()
+        .map_err(|e| format!("Failed to get blockhash: {}", e))?;
+    
+    // Create and sign transaction
+    let transaction = SolanaTransaction::new_signed_with_payer(
+        &[instruction],
+        Some(&keypair.pubkey()),
+        &[&keypair],
+        recent_blockhash,
+    );
+    
+    // Send transaction
+    let signature = client
+        .send_and_confirm_transaction(&transaction)
+        .map_err(|e| format!("Failed to send transaction: {}", e))?;
+    
+    let sol_amount = lamports as f64 / 1_000_000_000.0;
+    println!("✅ Transaction sent! Signature: {}", signature);
+    println!("💰 Sent {:.9} SOL ({} lamports) to {}", sol_amount, lamports, pubkey);
+    
+    Ok(signature.to_string())
 }
-
 
 pub fn routes() -> Router {
     Router::new()
